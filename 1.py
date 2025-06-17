@@ -6,7 +6,7 @@ from telegram import Update
 from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
 
 # تنظیمات
-BOT_TOKEN = "توکن_ربات_تو"
+BOT_TOKEN = "7658073484:AAFlGTDzC7VQYg1bt5mNonTOBiuRXs8Jjqw"
 MOM_ID = 2065070882  # آیدی مامان
 DAD_ID = 6508600903  # آیدی بابا
 MEMORY_FILE = "memory.json"
