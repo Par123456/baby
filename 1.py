@@ -1,21 +1,21 @@
 import json
 import logging
 import random
-import re
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
+from telegram.ext import ApplicationBuilder, ContextTypes, MessageHandler, filters
 
 # تنظیمات
 BOT_TOKEN = "7658073484:AAFlGTDzC7VQYg1bt5mNonTOBiuRXs8Jjqw"
-MOM_ID = 2065070882  # آیدی مامان
-DAD_ID = 6508600903  # آیدی بابا
+MOM_ID = 2065070882
+DAD_ID = 6508600903
 MEMORY_FILE = "memory.json"
 BABY_NAME = "کوروش"
 
+# لاگ برای دیباگ
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# حافظه کلید-جواب
+# حافظه یادگیری
 def load_memory():
     try:
         with open(MEMORY_FILE, "r", encoding="utf-8") as f:
@@ -23,73 +23,75 @@ def load_memory():
     except:
         return {}
 
-def save_memory(memory):
+def save_memory(data):
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
-        json.dump(memory, f, ensure_ascii=False, indent=2)
+        json.dump(data, f, ensure_ascii=False, indent=2)
 
 def baby_talk(text):
-    endings = [" مامان", " بابا", " من کوچولوام", " من بچه‌م", " 😅", " 🍼", " 😇"]
-    return f"{text}{random.choice(endings)}"
+    endings = [" مامان", " بابا", " 🍼", " 😇", " دوستت دارم", " کوچولو", " 😅"]
+    return text + random.choice(endings)
 
+# پیام ورودی
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message is None or update.effective_chat.type not in ['group', 'supergroup']:
+    msg = update.message
+    if not msg or not msg.text:
         return
 
-    msg = update.message
-    sender_id = msg.from_user.id
+    chat_type = update.effective_chat.type
+    if chat_type not in ['group', 'supergroup']:
+        return
+
+    user_id = msg.from_user.id
     text = msg.text.strip()
+    lowered = text.lower()
     memory = load_memory()
 
-    # یادگیری
-    if sender_id in [MOM_ID, DAD_ID] and text.startswith("یاد بگیر"):
-        content = text[len("یاد بگیر"):].strip()
-        if not content:
-            await msg.reply_text("چی یاد بگیرم مامان؟ 😥")
-            return
-        parts = content.split("=>")
-        if len(parts) != 2:
-            await msg.reply_text("باید اینجوری بگی: یاد بگیر سلام => سلاممم مامان جون 😍")
-            return
-        key = parts[0].strip().lower()
-        value = parts[1].strip()
-        memory[key] = value
-        save_memory(memory)
-        await msg.reply_text("چشم! یاد گرفتم 🧠")
+    # آموزش
+    if user_id in [MOM_ID, DAD_ID] and text.startswith("یاد بگیر"):
+        try:
+            parts = text[len("یاد بگیر"):].strip().split("=>")
+            if len(parts) != 2:
+                await msg.reply_text("بگو: یاد بگیر جمله => جواب")
+                return
+            key = parts[0].strip().lower()
+            value = parts[1].strip()
+            memory[key] = value
+            save_memory(memory)
+            await msg.reply_text("چشم یاد گرفتم 😇")
+        except Exception as e:
+            await msg.reply_text("مشکلی پیش اومد 😢")
         return
 
-    # مامان یا بابا بپرسه "چی یاد گرفتی؟"
-    if sender_id in [MOM_ID, DAD_ID] and "چی یاد گرفتی" in text:
-        if memory:
-            preview = "\n".join(f"• {k} => {v}" for k, v in list(memory.items())[-10:])
-            await msg.reply_text(f"اینارو یاد گرفتم:\n{preview}")
-        else:
-            await msg.reply_text("من هیچی بلد نیستم هنوز 😭")
-        return
-
-    # مامان یا بابا بگه فراموش کن
-    if sender_id in [MOM_ID, DAD_ID] and "فراموش کن" in text:
+    # فراموشی
+    if user_id in [MOM_ID, DAD_ID] and "فراموش کن" in lowered:
         save_memory({})
-        await msg.reply_text("باشه همه چی یادم رفت 😢")
+        await msg.reply_text("یادم رفت همه چیز 😭")
         return
 
-    # فقط اگه کسی اسمش رو صدا بزنه یا مامان بابا باشن
-    if sender_id not in [MOM_ID, DAD_ID] and BABY_NAME not in text.lower():
+    # حافظه
+    if user_id in [MOM_ID, DAD_ID] and "چی یاد گرفتی" in lowered:
+        if memory:
+            text = "\n".join([f"• {k} => {v}" for k, v in list(memory.items())[-10:]])
+            await msg.reply_text(f"یاد گرفتم اینا رو:\n{text}")
+        else:
+            await msg.reply_text("من هیچی بلد نیستم هنوز 🥺")
         return
 
-    lowered = text.lower()
+    # فقط اگر مامان یا بابا باشه یا اسمش صدا زده شده باشه
+    if user_id not in [MOM_ID, DAD_ID] and BABY_NAME.lower() not in lowered:
+        return
 
-    # اگر برای این پیام پاسخی یاد گرفته
+    # پاسخ‌دهی
     for key in memory:
         if key in lowered:
             await msg.reply_text(baby_talk(memory[key]))
             return
 
-    # بلد نیست؟
-    await msg.reply_text("من بلد نیستم جوابشو بگم، یادم بده 😭 بگو مثلا:\nیاد بگیر سلام => سلاممم! 🌞")
+    await msg.reply_text("بلد نیستم 😭 بگو یاد بگیر جمله => جواب")
 
-# اجرا
+# اجرای برنامه
 if __name__ == "__main__":
     app = ApplicationBuilder().token(BOT_TOKEN).build()
     app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), handle_message))
-    print("🤖 ربات کودک فعال شد...")
+    print("🤖 ربات کودک برای Python 3.13.1 فعال شد...")
     app.run_polling()
